@@ -1,0 +1,22 @@
+backend/                       # Python FastAPI
+    ├── main.py                    # app entrypoint, CORS, startup
+    ├── config.py                  # settings (env vars, DB URLs)
+    ├── requirements.txt
+    ├── models/
+    │   ├── __init__.py
+    │   ├── user.py                # Pydantic + Beanie User model
+    │   └── case.py                # Pydantic + Beanie Case model
+    ├── routes/
+    │   ├── __init__.py
+    │   ├── auth.py                # login, signup, refresh, me
+    │   ├── cases.py               # CRUD cases
+    │   ├── analysis.py            # AI analysis endpoints
+    │   ├── jury.py                # jury simulation
+    │   ├── documents.py           # document upload / management
+    │   └── reports.py             # report generation
+    ├── services/
+    │   ├── __init__.py
+    │   ├── auth_service.py        # hashing, JWT create/verify
+    │   ├── mongo_service.py       # MongoDB init + helpers
+    │   └── qdrant_service.py      # Qdrant init + vector ops
+    └── deps.py                    # FastAPI dependency injection (get_current_user)
