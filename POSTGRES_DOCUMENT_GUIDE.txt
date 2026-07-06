@@ -1,0 +1,352 @@
+================================================================================
+  HOW TO SEND DOCUMENT DATA TO POSTGRESQL — FULL CRUD GUIDE
+  LexAI Backend — D:\Internship\backend
+================================================================================
+
+ARCHITECTURE OVERVIEW
+---------------------
+Your pipeline:  upload → parse → chunk → embed → Qdrant (vector DB)
+                                                  ↓
+                                          [MISSING] → PostgreSQL (metadata)
+
+Qdrant stores vectors + chunk text for semantic search.
+PostgreSQL stores structured metadata (filename, size, type, case link, etc.)
+for listing, filtering, and CRUD operations.
+
+The documents table already exists in the code model — you just need to:
+  1. Write to it during ingestion
+  2. Add a CRUD router so the frontend can list/view/edit/delete
+
+
+════════════════════════════════════════════════════════════════════════════
+  PART 1: WRITE TO POSTGRESQL DURING INGESTION
+════════════════════════════════════════════════════════════════════════════
+
+THE TABLE (already defined in db/models/document.py)
+-----------------------------------------------------
+Table:   documents
+PK:      UUID (id)
+Fields:  user_id (int FK → users.id)
+         case_id (UUID FK → cases.id)
+         filename, file_type, file_size, file_path
+         page_count, text_preview, chunks_count
+         qdrant_document_id (optional — links to Qdrant)
+         created_at, updated_at (auto)
+
+THE SESSION (already wired in db/session.py)
+---------------------------------------------
+  from db.session import get_session  # FastAPI dependency (yield)
+  from db.session import engine        # raw engine for manual use
+
+  # Pattern A: in a FastAPI route (preferred):
+  def my_route(session: Session = Depends(get_session)):
+      session.add(obj)
+      session.commit()
+
+  # Pattern B: in a script/pipeline (non-route):
+  from sqlmodel import Session
+  with Session(engine) as session:
+      session.add(obj)
+      session.commit()
+
+
+STEP 1A: ADD THE DB WRITE TO THE PIPELINE
+------------------------------------------
+Edit: services/ingestion/pipeline.py
+
+1. Add imports at top (around line 25):
+
+   from uuid import UUID
+   from sqlmodel import Session
+   from db.session import engine
+   from db.models.document import Document as DocumentDB
+
+2. After the Qdrant store block (after line 138), INSERT this:
+
+   # ── Step 7: Save metadata to PostgreSQL ─────────────────────────
+   with Session(engine) as session:
+       db_doc = DocumentDB(
+           id=UUID(document_id),
+           user_id=user_id,
+           case_id=case_id,
+           filename=meta.get("filename", file_path.name),
+           file_type=parsed.file_type,
+           file_size=file_path.stat().st_size if file_path.exists() else 0,
+           file_path=str(file_path),
+           page_count=parsed.metadata.get("pages", 0) if parsed.metadata else 0,
+           text_preview=parsed.text[:500] if parsed.text else "",
+           chunks_count=len(chunks),
+           qdrant_document_id=document_id if store_in_qdrant else None,
+       )
+       session.add(db_doc)
+       session.commit()
+
+That's it — every uploaded doc now gets a PostgreSQL row.
+
+
+════════════════════════════════════════════════════════════════════════════
+  PART 2: DOCUMENTS CRUD ROUTER (for frontend consumption)
+════════════════════════════════════════════════════════════════════════════
+
+Create this file: routes/documents_crud.py
+
+This follows the EXACT same pattern as routes/cases.py — FastAPI dependency
+injection, camelCase JSON keys for the frontend, user-scoped access, UUID PKs.
+
+──────────────────────────────────────────────────────────────────────────
+FULL ROUTER CODE
+──────────────────────────────────────────────────────────────────────────
+
+\"\"\"Documents CRUD router — list, get, update, delete documents.\"\"\"
+
+from datetime import datetime
+from uuid import UUID
+
+from fastapi import APIRouter, Depends, HTTPException, Request, status
+from sqlmodel import Session, select
+
+from db.session import get_session
+from db.models.document import Document
+from routes.auth import get_current_user
+
+router = APIRouter(prefix="/documents", tags=["documents"])
+
+
+# ── Helper: ORM → JSON (camelCase for frontend) ─────────────────────
+
+def _doc_to_dict(doc: Document) -> dict:
+    \"\"\"Convert Document ORM object to JSON for the frontend.\"\"\"
+    return {
+        "id": str(doc.id),
+        "userId": doc.user_id,
+        "caseId": str(doc.case_id) if doc.case_id else None,
+        "filename": doc.filename,
+        "fileType": doc.file_type,
+        "fileSize": doc.file_size,
+        "filePath": doc.file_path,
+        "pageCount": doc.page_count,
+        "textPreview": doc.text_preview,
+        "chunksCount": doc.chunks_count,
+        "qdrantDocumentId": doc.qdrant_document_id,
+        "createdAt": doc.created_at.isoformat() if doc.created_at else None,
+        "updatedAt": doc.updated_at.isoformat() if doc.updated_at else None,
+    }
+
+
+# ── CREATE — handled by the upload route (routes/documents.py) ──────
+# POST /upload-documents  already exists — no separate create endpoint needed
+
+
+# ── READ ALL — list documents for a case ────────────────────────────
+
+@router.get("/")
+def list_documents(
+    case_id: UUID | None = None,
+    session: Session = Depends(get_session),
+    user_id: int = Depends(get_current_user),
+):
+    \"\"\"
+    List documents. Optional ?case_id= filter.
+    Returns all docs belonging to the authenticated user.
+    \"\"\"
+    stmt = select(Document).where(Document.user_id == user_id)
+
+    if case_id:
+        stmt = stmt.where(Document.case_id == case_id)
+
+    stmt = stmt.order_by(Document.created_at.desc())
+    docs = session.exec(stmt).all()
+    return [_doc_to_dict(d) for d in docs]
+
+
+# ── READ ONE ────────────────────────────────────────────────────────
+
+@router.get("/{document_id}")
+def get_document(
+    document_id: UUID,
+    session: Session = Depends(get_session),
+    user_id: int = Depends(get_current_user),
+):
+    \"\"\"Get a single document by ID. Must belong to the authenticated user.\"\"\"
+    doc = session.get(Document, document_id)
+    if not doc or doc.user_id != user_id:
+        raise HTTPException(status_code=404, detail="Document not found")
+    return _doc_to_dict(doc)
+
+
+# ── UPDATE ──────────────────────────────────────────────────────────
+
+@router.patch("/{document_id}")
+async def update_document(
+    document_id: UUID,
+    request: Request,
+    session: Session = Depends(get_session),
+    user_id: int = Depends(get_current_user),
+):
+    \"\"\"Update fields on an existing document. Only the owner can update.\"\"\"
+    doc = session.get(Document, document_id)
+    if not doc or doc.user_id != user_id:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    payload = await request.json()
+
+    # Map frontend camelCase → DB snake_case
+    field_map = {
+        "filename": "filename",
+        "fileType": "file_type",
+        "fileSize": "file_size",
+        "filePath": "file_path",
+        "pageCount": "page_count",
+        "textPreview": "text_preview",
+        "chunksCount": "chunks_count",
+        "qdrantDocumentId": "qdrant_document_id",
+    }
+
+    for json_key, db_field in field_map.items():
+        if json_key in payload:
+            setattr(doc, db_field, payload[json_key])
+
+    doc.updated_at = datetime.utcnow()
+    session.add(doc)
+    session.commit()
+    session.refresh(doc)
+    return _doc_to_dict(doc)
+
+
+# ── DELETE ──────────────────────────────────────────────────────────
+
+@router.delete("/{document_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_document(
+    document_id: UUID,
+    session: Session = Depends(get_session),
+    user_id: int = Depends(get_current_user),
+):
+    \"\"\"
+    Delete a document record from PostgreSQL.
+    Also deletes all chunks from Qdrant.
+    \"\"\"
+    doc = session.get(Document, document_id)
+    if not doc or doc.user_id != user_id:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    # Delete from Qdrant first
+    import os
+    from services.ingestion.storage import QdrantStore
+    store = QdrantStore(
+        collection_name=os.getenv("QDRANT_COLLECTION", "lexai_documents")
+    )
+    store.delete_by_document(str(document_id))
+
+    # Delete from PostgreSQL
+    session.delete(doc)
+    session.commit()
+    # 204 No Content — no body returned
+
+
+──────────────────────────────────────────────────────────────────────────
+REGISTER THE ROUTER
+──────────────────────────────────────────────────────────────────────────
+
+In your main FastAPI app file (likely main.py or app.py), add:
+
+    from routes import documents_crud
+    app.include_router(documents_crud.router)
+
+
+════════════════════════════════════════════════════════════════════════════
+  PART 3: API ENDPOINTS — QUICK REFERENCE
+════════════════════════════════════════════════════════════════════════════
+
+BASE URL: http://localhost:8000
+
+  METHOD  ENDPOINT                    DESCRIPTION
+  ──────  ──────────────────────────  ───────────────────────────────────
+  POST    /upload-documents           Upload + ingest (already exists)
+  GET     /documents?case_id=<uuid>   List docs (optional case filter)
+  GET     /documents/<doc-uuid>       Get single document
+  PATCH   /documents/<doc-uuid>       Update document fields
+  DELETE  /documents/<doc-uuid>       Delete doc + Qdrant chunks
+
+
+════════════════════════════════════════════════════════════════════════════
+  PART 4: FRONTEND CALL EXAMPLES
+════════════════════════════════════════════════════════════════════════════
+
+LIST DOCUMENTS FOR A CASE:
+───────────────────────────
+  const res = await fetch(
+    `http://localhost:8000/documents?case_id=${caseId}`,
+    { credentials: "include" }
+  );
+  const docs = await res.json();
+  // docs = [{ id, userId, caseId, filename, fileType, fileSize,
+  //           pageCount, textPreview, chunksCount, createdAt, ... }, ...]
+
+GET SINGLE DOCUMENT:
+────────────────────
+  const res = await fetch(
+    `http://localhost:8000/documents/${docId}`,
+    { credentials: "include" }
+  );
+  const doc = await res.json();
+
+UPDATE A DOCUMENT:
+──────────────────
+  const res = await fetch(
+    `http://localhost:8000/documents/${docId}`,
+    {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ filename: "new-name.pdf", pageCount: 12 }),
+    }
+  );
+  const updated = await res.json();
+
+DELETE A DOCUMENT:
+──────────────────
+  const res = await fetch(
+    `http://localhost:8000/documents/${docId}`,
+    {
+      method: "DELETE",
+      credentials: "include",
+    }
+  );
+  // 204 No Content on success
+
+
+════════════════════════════════════════════════════════════════════════════
+  PART 5: IMPORTANT NOTES
+════════════════════════════════════════════════════════════════════════════
+
+- user_id is INTEGER (FK to users.id), NOT UUID. Always pass an int.
+
+- case_id is UUID (FK to cases.id). Can be None for unassigned docs.
+
+- The frontend gets camelCase keys (fileSize, createdAt, etc.) because
+  the helper function _doc_to_dict() converts from DB snake_case.
+  Follow the same pattern as routes/cases.py (already proven working).
+
+- Auth is handled by get_current_user dependency. Every endpoint is
+  automatically scoped to the authenticated user — no one can see
+  another user's documents.
+
+- The DELETE endpoint cleans up BOTH PostgreSQL AND Qdrant. If you
+  delete only the PG row, orphaned Qdrant vectors remain forever.
+
+- CREATE is handled by the existing POST /upload-documents route.
+  After adding the pipeline write (Part 1), uploaded documents will
+  automatically appear in both databases.
+
+- If you need Alembic migrations for schema changes:
+    cd D:\Internship\backend
+    alembic revision --autogenerate -m "description"
+    alembic upgrade head
+
+  Verify the table exists in Docker PostgreSQL:
+    docker exec -it <pg-container> psql -U <user> -d <db> -c "\d documents"
+
+- All config comes from .env (DATABASE_URL, QDRANT_COLLECTION, etc.).
+  Never hardcode collection names or connection strings.
+
+================================================================================

@@ -1,0 +1,194 @@
+================================================================================
+  POSTGRESQL CRUD — QUICK REFERENCE
+  LexAI Backend (FastAPI + SQLModel)
+================================================================================
+
+SETUP (already done, don't touch)
+----------------------------------
+  Engine:      db/session.py  →  engine = create_engine(DATABASE_URL)
+  Session:     db/session.py  →  get_session()  (FastAPI dependency, yields Session)
+  Models:      db/models/     →  one file per table, SQLModel classes
+  Migrations:  alembic/       →  auto-generate from models
+
+  Tables:  users (int PK), cases (UUID PK), documents (UUID PK)
+
+
+═══════════════════════════════════════════════════════════════════════
+  PATTERN 1 — SELECT (READ)
+═══════════════════════════════════════════════════════════════════════
+
+Get all rows for a user:
+─────────────────────────
+  from sqlmodel import Session, select
+  from db.session import get_session
+  from db.models.case import Case
+
+  @router.get("/cases/")
+  def list_cases(
+      session: Session = Depends(get_session),
+      user_id: int = Depends(get_current_user),
+  ):
+      stmt = select(Case).where(Case.user_id == user_id)
+      cases = session.exec(stmt).all()
+      return cases
+
+Get one row by ID:
+───────────────────
+  case = session.get(Case, case_id)        # UUID or int PK
+  if not case or case.user_id != user_id:  # ownership check
+      raise HTTPException(404, "Not found")
+  return case
+
+With a filter:
+──────────────
+  stmt = select(Document).where(
+      Document.user_id == user_id,
+      Document.case_id == case_id,  # multiple conditions = AND
+  )
+  docs = session.exec(stmt).all()
+
+With ordering:
+──────────────
+  stmt = select(Case).where(...).order_by(Case.updated_at.desc())
+
+With optional filter:
+─────────────────────
+  stmt = select(Document).where(Document.user_id == user_id)
+  if case_id:
+      stmt = stmt.where(Document.case_id == case_id)
+  docs = session.exec(stmt).all()
+
+
+═══════════════════════════════════════════════════════════════════════
+  PATTERN 2 — INSERT (CREATE)
+═══════════════════════════════════════════════════════════════════════
+
+  new_case = Case(
+      user_id=user_id,
+      case_name=payload["caseName"],
+      claim_type=payload.get("claimType", ""),
+  )
+  session.add(new_case)
+  session.commit()
+  session.refresh(new_case)   # get DB-generated values (id, timestamps)
+  return new_case
+
+If you need to return camelCase JSON:
+──────────────────────────────────────
+  return {
+      "id": str(new_case.id),
+      "userId": new_case.user_id,
+      "caseName": new_case.case_name,
+      ...
+  }
+
+
+═══════════════════════════════════════════════════════════════════════
+  PATTERN 3 — UPDATE
+═══════════════════════════════════════════════════════════════════════
+
+  doc = session.get(Document, doc_id)
+  if not doc or doc.user_id != user_id:
+      raise HTTPException(404, "Not found")
+
+  # Update specific fields
+  doc.filename = "new_name.pdf"
+  doc.page_count = 12
+  doc.updated_at = datetime.utcnow()
+
+  session.add(doc)
+  session.commit()
+  session.refresh(doc)
+  return doc
+
+Bulk update from request body:
+───────────────────────────────
+  payload = await request.json()
+
+  field_map = {"caseName": "case_name", "claimType": "claim_type"}  # camelCase → snake_case
+
+  for json_key, db_field in field_map.items():
+      if json_key in payload:
+          setattr(obj, db_field, payload[json_key])
+
+  obj.updated_at = datetime.utcnow()
+  session.add(obj)
+  session.commit()
+
+
+═══════════════════════════════════════════════════════════════════════
+  PATTERN 4 — DELETE
+═══════════════════════════════════════════════════════════════════════
+
+  @router.delete("/cases/{case_id}", status_code=204)
+  def delete_case(
+      case_id: UUID,
+      session: Session = Depends(get_session),
+      user_id: int = Depends(get_current_user),
+  ):
+      case = session.get(Case, case_id)
+      if not case or case.user_id != user_id:
+          raise HTTPException(404, "Not found")
+
+      session.delete(case)
+      session.commit()
+      # returns nothing — 204 No Content
+
+
+═══════════════════════════════════════════════════════════════════════
+  HOW TO CREATE A NEW TABLE
+═══════════════════════════════════════════════════════════════════════
+
+Step 1 — Create the model  (db/models/<name>.py)
+─────────────────────────────────────────────────
+  from datetime import datetime
+  from uuid import UUID, uuid4
+  from sqlmodel import SQLModel, Field
+
+  class Thing(SQLModel, table=True):
+      __tablename__ = "things"
+
+      id: UUID = Field(default_factory=uuid4, primary_key=True)
+      user_id: int = Field(foreign_key="users.id", index=True)
+      name: str
+      created_at: datetime = Field(default_factory=datetime.utcnow)
+
+Step 2 — Generate migration
+─────────────────────────────
+  cd D:\Internship\backend
+  alembic revision --autogenerate -m "add things table"
+
+Step 3 — Read the migration file to verify, then apply
+────────────────────────────────────────────────────────
+  alembic upgrade head
+
+Step 4 — Use it in a route
+────────────────────────────
+  from db.models.thing import Thing
+
+
+RULES TO NEVER BREAK
+---------------------
+1. Always check ownership:  if not obj or obj.user_id != user_id: raise 404
+2. UUID PKs: always pass id explicitly or use default_factory=uuid4
+3. Foreign keys: user_id is INT (→ users.id), case_id is UUID (→ cases.id)
+4. Commit after add/delete: session.add(obj); session.commit()
+5. Refresh after create: session.refresh(obj) to get DB defaults
+6. camelCase in JSON responses (frontend expects it)
+7. All config from .env — never hardcode URLs/keys
+8. Use Alembic for schema changes — never edit DB directly
+
+CONVERTING TO CAMELCASE (quick helper)
+---------------------------------------
+Write a small converter function per model:
+
+  def _thing_to_dict(t: Thing) -> dict:
+      return {
+          "id": str(t.id),
+          "userId": t.user_id,
+          "name": t.name,
+          "createdAt": t.created_at.isoformat() if t.created_at else None,
+      }
+
+Then use it in every route:  return _thing_to_dict(thing)
+================================================================================

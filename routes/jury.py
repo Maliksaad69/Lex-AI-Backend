@@ -1,7 +1,6 @@
-// jury simulation
 # jury.py
 
-# jury simulation
+
 
 import os
 import sys
