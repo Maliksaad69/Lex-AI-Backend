@@ -25,7 +25,7 @@ from typing import Optional
 from uuid import UUID, uuid4
 import os
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile, status
+from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, Query, Request, UploadFile, status
 from sqlmodel import Session, select
 
 from middleware.user_context import get_user_context
@@ -68,6 +68,8 @@ async def upload_documents(
     case_id: UUID = Form(...),
     user: dict = Depends(get_user_context),
     store_in_qdrant: bool = Form(True),
+    run_analysis: bool = Form(False),
+    background_tasks: BackgroundTasks = BackgroundTasks(),
 ):
     """
     Upload one or more documents and run the full ingestion pipeline.
@@ -123,7 +125,30 @@ async def upload_documents(
                 "chunks_count": 0,
             })
 
+    # ── Auto-trigger analysis if requested ────────────────────────
+    if run_analysis and any(r.get("chunks_count", 0) > 0 for r in results):
+        background_tasks.add_task(_run_analysis_bg, case_id)
+
     return results
+
+
+# ── Background analysis task ────────────────────────────────────────────
+
+
+def _run_analysis_bg(case_id: UUID) -> None:
+    """Run the 7-agent analysis pipeline in a background task."""
+    import logging
+    logging.basicConfig(level=logging.INFO)
+    from services.case_analysis.graph.workflow import run_analysis_pipeline
+    from db.session import engine
+    from sqlmodel import Session
+
+    with Session(engine) as session:
+        try:
+            run_analysis_pipeline(case_id, session)
+            logging.info("[background] Analysis complete for case %s", case_id)
+        except Exception as e:
+            logging.exception("[background] Analysis failed for case %s: %s", case_id, e)
 
 
 # ── READ: List documents (PostgreSQL) ──────────────────────────────────
