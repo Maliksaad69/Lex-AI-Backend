@@ -16,7 +16,6 @@ from sqlmodel import Session
 
 from services.case_analysis.graph.state import CaseAnalysisState
 from services.case_analysis.services.qdrant import qdrant_service
-from services.case_analysis.services.database import clear_case_analysis
 
 from services.case_analysis.agents.fact_agent import run_fact_agent
 from services.case_analysis.agents.party_agent import run_party_agent
@@ -97,7 +96,14 @@ def run_analysis_pipeline(case_id: UUID, session: Session) -> dict[str, Any]:
         "errors": [],
     }
 
-    clear_case_analysis(session, case_id)
+    # ── 2. Clear stale data (all domains) ──────────────────────────────
+    delete_case_facts(session, case_id)
+    delete_case_parties(session, case_id)
+    delete_case_claims(session, case_id)
+    delete_case_evidence_links(session, case_id)
+    delete_case_timeline(session, case_id)
+    delete_case_contradictions(session, case_id)
+    delete_case_assessments(session, case_id)
 
     # ── 3. Fact Agent ────────────────────────────────────────────────
     logger.info("[pipeline] case=%s — Agent 1/7: Fact Extraction", case_id)
