@@ -52,7 +52,9 @@ class QdrantService:
                 }
             )
 
-        chunks.sort(key=lambda x: (x["document_name"], x["page"] or 0, x["chunk_index"]))
+        chunks.sort(
+            key=lambda x: (x["document_name"], x["page"] or 0, x["chunk_index"])
+        )
         return chunks
 
     def build_context(self, case_id: str) -> str:

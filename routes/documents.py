@@ -25,7 +25,18 @@ from typing import Optional
 from uuid import UUID, uuid4
 import os
 
-from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, Query, Request, UploadFile, status
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    Depends,
+    File,
+    Form,
+    HTTPException,
+    Query,
+    Request,
+    UploadFile,
+    status,
+)
 from sqlmodel import Session, select
 
 from middleware.user_context import get_user_context
@@ -42,6 +53,7 @@ UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
 
 # ── Helper: ORM → camelCase dict for frontend ─────────────────────────
+
 
 def _doc_to_dict(doc: Document) -> dict:
     return {
@@ -61,6 +73,7 @@ def _doc_to_dict(doc: Document) -> dict:
 
 
 # ── CREATE: Upload + Ingest ────────────────────────────────────────────
+
 
 @router.post("/upload-documents")
 async def upload_documents(
@@ -94,12 +107,14 @@ async def upload_documents(
         try:
             file_path = save_file(file)
         except Exception as e:
-            results.append({
-                "document_id": doc_id,
-                "filename": file.filename,
-                "error": f"Failed to save file: {e}",
-                "chunks_count": 0,
-            })
+            results.append(
+                {
+                    "document_id": doc_id,
+                    "filename": file.filename,
+                    "error": f"Failed to save file: {e}",
+                    "chunks_count": 0,
+                }
+            )
             continue
 
         # Run pipeline
@@ -118,12 +133,14 @@ async def upload_documents(
             result["file_size"] = file_path.stat().st_size if file_path.exists() else 0
             results.append(result)
         except Exception as e:
-            results.append({
-                "document_id": doc_id,
-                "filename": file.filename,
-                "error": str(e),
-                "chunks_count": 0,
-            })
+            results.append(
+                {
+                    "document_id": doc_id,
+                    "filename": file.filename,
+                    "error": str(e),
+                    "chunks_count": 0,
+                }
+            )
 
     # ── Auto-trigger analysis if requested ────────────────────────
     if run_analysis and any(r.get("chunks_count", 0) > 0 for r in results):
@@ -138,6 +155,7 @@ async def upload_documents(
 def _run_analysis_bg(case_id: UUID) -> None:
     """Run the 7-agent analysis pipeline in a background task."""
     import logging
+
     logging.basicConfig(level=logging.INFO)
     from services.case_analysis.graph.workflow import run_analysis_pipeline
     from db.session import engine
@@ -148,10 +166,13 @@ def _run_analysis_bg(case_id: UUID) -> None:
             run_analysis_pipeline(case_id, session)
             logging.info("[background] Analysis complete for case %s", case_id)
         except Exception as e:
-            logging.exception("[background] Analysis failed for case %s: %s", case_id, e)
+            logging.exception(
+                "[background] Analysis failed for case %s: %s", case_id, e
+            )
 
 
 # ── READ: List documents (PostgreSQL) ──────────────────────────────────
+
 
 @router.get("/documents/")
 def list_documents(
@@ -172,6 +193,7 @@ def list_documents(
 
 # ── READ: Single document ──────────────────────────────────────────────
 
+
 @router.get("/documents/{document_id}")
 def get_document(
     document_id: UUID,
@@ -186,6 +208,7 @@ def get_document(
 
 
 # ── READ: Chunks from Qdrant ───────────────────────────────────────────
+
 
 @router.get("/documents/{document_id}/chunks")
 async def get_document_chunks(
@@ -240,6 +263,7 @@ async def get_document_chunks(
 
 # ── UPDATE ──────────────────────────────────────────────────────────────
 
+
 @router.patch("/documents/{document_id}")
 async def update_document(
     document_id: UUID,
@@ -277,6 +301,7 @@ async def update_document(
 
 # ── DELETE: PostgreSQL + Qdrant ────────────────────────────────────────
 
+
 @router.delete("/documents/{document_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_document(
     document_id: UUID,
@@ -290,6 +315,7 @@ def delete_document(
 
     # Delete chunks from Qdrant
     from services.ingestion.storage import QdrantStore
+
     store = QdrantStore(
         collection_name=os.getenv("QDRANT_COLLECTION", "lexai_documents")
     )

@@ -8,7 +8,6 @@ from db.session import get_session
 from db.models.user import User
 from routes.auth import oauth2_scheme
 
-
 SECRET_KEY = os.getenv("SECRET_KEY")
 ALGORITHM = "HS256"
 
@@ -32,9 +31,7 @@ def get_user_context(
                 detail="Invalid token",
             )
 
-        user = session.exec(
-            select(User).where(User.id == user_id)
-        ).first()
+        user = session.exec(select(User).where(User.id == user_id)).first()
 
         if user is None:
             raise HTTPException(

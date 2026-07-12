@@ -29,6 +29,7 @@ from PIL import Image
 @dataclass
 class ParsedDocument:
     """Unified output from any parser."""
+
     text: str = ""
     pages: list[str] = field(default_factory=list)
     metadata: dict[str, Any] = field(default_factory=dict)
@@ -40,6 +41,7 @@ class ParsedDocument:
 
 
 # ── Helpers ────────────────────────────────────────────────────────────
+
 
 def _clean_text(text: str) -> str:
     """Normalise whitespace."""
@@ -56,6 +58,7 @@ def _file_type(path: str | Path) -> str:
 
 
 # ── PDF Parser (pymupdf) ───────────────────────────────────────────────
+
 
 def _parse_pdf(file_path: str, ocr_enabled: bool = True) -> ParsedDocument:
     """Extract text from PDF using pymupdf with OCR fallback."""
@@ -81,6 +84,7 @@ def _parse_pdf(file_path: str, ocr_enabled: bool = True) -> ParsedDocument:
         if len(text) < 30 and ocr_enabled:
             try:
                 import pytesseract
+
                 pix = page.get_pixmap(dpi=300)
                 img = Image.open(io.BytesIO(pix.tobytes("png")))
                 ocr_text = pytesseract.image_to_string(img)
@@ -115,6 +119,7 @@ def _parse_pdf(file_path: str, ocr_enabled: bool = True) -> ParsedDocument:
 
 
 # ── DOCX Parser ────────────────────────────────────────────────────────
+
 
 def _parse_docx(file_path: str) -> ParsedDocument:
     """Extract text + tables from DOCX including headers/footers."""
@@ -162,6 +167,7 @@ def _parse_docx(file_path: str) -> ParsedDocument:
 
 # ── PPTX Parser ────────────────────────────────────────────────────────
 
+
 def _parse_pptx(file_path: str) -> ParsedDocument:
     """Extract text from PowerPoint slides."""
     from pptx import Presentation
@@ -181,9 +187,7 @@ def _parse_pptx(file_path: str) -> ParsedDocument:
             if shape.has_table:
                 table = shape.table
                 for row in table.rows:
-                    row_text = " | ".join(
-                        cell.text.strip() for cell in row.cells
-                    )
+                    row_text = " | ".join(cell.text.strip() for cell in row.cells)
                     lines.append(row_text)
         if lines:
             slides.append(f"--- Slide {i} ---\n" + "\n".join(lines))
@@ -198,6 +202,7 @@ def _parse_pptx(file_path: str) -> ParsedDocument:
 
 
 # ── Spreadsheet Parsers ────────────────────────────────────────────────
+
 
 def _parse_xlsx(file_path: str) -> ParsedDocument:
     """Extract all sheets from Excel as text + tables."""
@@ -247,10 +252,12 @@ def _parse_csv(file_path: str) -> ParsedDocument:
 
 # ── Image Parser (OCR only) ────────────────────────────────────────────
 
+
 def _parse_image(file_path: str) -> ParsedDocument:
     """OCR an image file."""
     try:
         import pytesseract
+
         img = Image.open(str(file_path))
         text = pytesseract.image_to_string(img)
     except ImportError:
@@ -273,6 +280,7 @@ def _parse_image(file_path: str) -> ParsedDocument:
 
 
 # ── Plain-text Parsers ─────────────────────────────────────────────────
+
 
 def _parse_txt(file_path: str) -> ParsedDocument:
     with open(file_path, encoding="utf-8", errors="replace") as f:
@@ -359,6 +367,7 @@ def parse(file_path: str | Path, **kwargs) -> ParsedDocument:
         # Fallback: try textract for unsupported formats
         try:
             import textract
+
             raw = textract.process(str(file_path)).decode("utf-8", errors="replace")
             return ParsedDocument(
                 text=_clean_text(raw),
@@ -381,6 +390,7 @@ def parse(file_path: str | Path, **kwargs) -> ParsedDocument:
         # Last-resort fallback via textract
         try:
             import textract
+
             raw = textract.process(str(file_path)).decode("utf-8", errors="replace")
             return ParsedDocument(
                 text=_clean_text(raw),

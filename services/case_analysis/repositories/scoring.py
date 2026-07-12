@@ -38,10 +38,22 @@ def save_assessments(
             case_id=case_id,
             claim_id=claim_ids[claim_idx],
             overall_strength=a.get("overall_strength", 5),
-            strengths=json.dumps(strengths_raw) if isinstance(strengths_raw, list) else str(strengths_raw),
-            weaknesses=json.dumps(weaknesses_raw) if isinstance(weaknesses_raw, list) else str(weaknesses_raw),
+            strengths=(
+                json.dumps(strengths_raw)
+                if isinstance(strengths_raw, list)
+                else str(strengths_raw)
+            ),
+            weaknesses=(
+                json.dumps(weaknesses_raw)
+                if isinstance(weaknesses_raw, list)
+                else str(weaknesses_raw)
+            ),
             risk_level=a.get("risk_level", "medium"),
-            recommendations=json.dumps(recommendations_raw) if isinstance(recommendations_raw, list) else str(recommendations_raw),
+            recommendations=(
+                json.dumps(recommendations_raw)
+                if isinstance(recommendations_raw, list)
+                else str(recommendations_raw)
+            ),
         )
         session.add(obj)
         instances.append(obj)
@@ -64,7 +76,9 @@ def get_assessments(session: Session, case_id: UUID) -> List[dict[str, Any]]:
             "strengths": json.loads(r.strengths) if r.strengths else [],
             "weaknesses": json.loads(r.weaknesses) if r.weaknesses else [],
             "risk_level": r.risk_level,
-            "recommendations": json.loads(r.recommendations) if r.recommendations else [],
+            "recommendations": (
+                json.loads(r.recommendations) if r.recommendations else []
+            ),
         }
         for r in rows
     ]

@@ -8,7 +8,9 @@ from sqlmodel import Session, select
 from db.models.analysis import Party
 
 
-def save_parties(session: Session, case_id: UUID, parties: List[dict[str, Any]]) -> List[Party]:
+def save_parties(
+    session: Session, case_id: UUID, parties: List[dict[str, Any]]
+) -> List[Party]:
     """Bulk-insert parties for a case."""
     instances = []
     for p in parties:

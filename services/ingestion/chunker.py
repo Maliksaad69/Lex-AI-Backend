@@ -21,9 +21,10 @@ from typing import Any, Callable
 @dataclass
 class Chunk:
     """A single text chunk."""
+
     text: str
-    index: int                    # position in the chunk list
-    start_char: int               # offset in original text
+    index: int  # position in the chunk list
+    start_char: int  # offset in original text
     end_char: int
     metadata: dict[str, Any] = field(default_factory=dict)
 
@@ -49,6 +50,7 @@ def _merge_small(chunks: list[str], min_size: int) -> list[str]:
 
 
 # ── Sliding Window ─────────────────────────────────────────────────────
+
 
 def sliding_window(
     text: str,
@@ -98,13 +100,15 @@ def sliding_window(
 
         chunk_text = text[start:end].strip()
         if chunk_text:
-            chunks.append(Chunk(
-                text=chunk_text,
-                index=idx,
-                start_char=start,
-                end_char=end,
-                metadata={"strategy": "sliding_window"},
-            ))
+            chunks.append(
+                Chunk(
+                    text=chunk_text,
+                    index=idx,
+                    start_char=start,
+                    end_char=end,
+                    metadata={"strategy": "sliding_window"},
+                )
+            )
             idx += 1
 
         start = end - chunk_overlap if end < len(text) else end
@@ -113,6 +117,7 @@ def sliding_window(
 
 
 # ── Semantic ───────────────────────────────────────────────────────────
+
 
 def semantic(
     text: str,
@@ -170,19 +175,22 @@ def semantic(
         if start_pos == -1:
             start_pos = pos
         end_pos = start_pos + len(chunk_text)
-        chunks.append(Chunk(
-            text=chunk_text,
-            index=i,
-            start_char=start_pos,
-            end_char=end_pos,
-            metadata={"strategy": "semantic"},
-        ))
+        chunks.append(
+            Chunk(
+                text=chunk_text,
+                index=i,
+                start_char=start_pos,
+                end_char=end_pos,
+                metadata={"strategy": "semantic"},
+            )
+        )
         pos = end_pos
 
     return chunks
 
 
 # ── Recursive ──────────────────────────────────────────────────────────
+
 
 def recursive(
     text: str,
@@ -205,7 +213,10 @@ def recursive(
         sep = _seps[0]
         if sep == "":
             # Character-level split
-            pieces = [_text[i:i + chunk_size] for i in range(0, len(_text), chunk_size - chunk_overlap)]
+            pieces = [
+                _text[i : i + chunk_size]
+                for i in range(0, len(_text), chunk_size - chunk_overlap)
+            ]
         else:
             pieces = _text.split(sep)
         # Recurse on pieces that are too large
@@ -228,19 +239,22 @@ def recursive(
         start_pos = text.find(piece, pos)
         if start_pos == -1:
             start_pos = pos
-        chunks.append(Chunk(
-            text=piece,
-            index=i,
-            start_char=start_pos,
-            end_char=start_pos + len(piece),
-            metadata={"strategy": "recursive"},
-        ))
+        chunks.append(
+            Chunk(
+                text=piece,
+                index=i,
+                start_char=start_pos,
+                end_char=start_pos + len(piece),
+                metadata={"strategy": "recursive"},
+            )
+        )
         pos = start_pos + len(piece)
 
     return chunks
 
 
 # ── Fixed ──────────────────────────────────────────────────────────────
+
 
 def fixed(
     text: str,
@@ -249,15 +263,17 @@ def fixed(
     """Simple character split, no overlap. Fastest option."""
     chunks: list[Chunk] = []
     for i in range(0, len(text), chunk_size):
-        chunk_text = text[i:i + chunk_size].strip()
+        chunk_text = text[i : i + chunk_size].strip()
         if chunk_text:
-            chunks.append(Chunk(
-                text=chunk_text,
-                index=len(chunks),
-                start_char=i,
-                end_char=min(i + chunk_size, len(text)),
-                metadata={"strategy": "fixed"},
-            ))
+            chunks.append(
+                Chunk(
+                    text=chunk_text,
+                    index=len(chunks),
+                    start_char=i,
+                    end_char=min(i + chunk_size, len(text)),
+                    metadata={"strategy": "fixed"},
+                )
+            )
     return chunks
 
 

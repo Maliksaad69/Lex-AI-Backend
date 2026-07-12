@@ -77,11 +77,7 @@ def _truncate_context(raw: str, max_chars: int = _CONTEXT_MAX_CHARS) -> str:
         return raw
     head = raw[: max_chars * 3 // 4]
     tail = raw[-(max_chars // 4) :]
-    return (
-        head
-        + f"\n\n[… {len(raw) - max_chars} chars truncated …]\n\n"
-        + tail
-    )
+    return head + f"\n\n[… {len(raw) - max_chars} chars truncated …]\n\n" + tail
 
 
 def run_analysis_pipeline(case_id: UUID, session: Session) -> dict[str, Any]:
@@ -146,12 +142,10 @@ def run_analysis_pipeline(case_id: UUID, session: Session) -> dict[str, Any]:
     logger.info("[pipeline] case=%s — Agent 1/7: Fact Extraction", case_id)
     facts = run_fact_agent(state)
     db_facts: list = []
-    print("facts are ,",facts)
+    print("facts are ,", facts)
     if facts:
         db_facts = save_facts(session, case_id, facts)
-        state["facts"] = [
-            {**f, "id": str(db_facts[i].id)} for i, f in enumerate(facts)
-        ]
+        state["facts"] = [{**f, "id": str(db_facts[i].id)} for i, f in enumerate(facts)]
         logger.info("[pipeline] case=%s — extracted %d facts", case_id, len(facts))
     else:
         logger.warning("[pipeline] case=%s — Fact agent returned empty", case_id)
@@ -194,7 +188,11 @@ def run_analysis_pipeline(case_id: UUID, session: Session) -> dict[str, Any]:
     if evidence_links and claim_ids and fact_ids:
         save_evidence_links(session, claim_ids, fact_ids, evidence_links)
         state["evidence_links"] = evidence_links
-        logger.info("[pipeline] case=%s — created %d evidence links", case_id, len(evidence_links))
+        logger.info(
+            "[pipeline] case=%s — created %d evidence links",
+            case_id,
+            len(evidence_links),
+        )
 
     time.sleep(_AGENT_SLEEP_S)
 
@@ -204,7 +202,9 @@ def run_analysis_pipeline(case_id: UUID, session: Session) -> dict[str, Any]:
     if timeline:
         save_timeline(session, case_id, timeline)
         state["timeline"] = timeline
-        logger.info("[pipeline] case=%s — built %d timeline events", case_id, len(timeline))
+        logger.info(
+            "[pipeline] case=%s — built %d timeline events", case_id, len(timeline)
+        )
 
     time.sleep(_AGENT_SLEEP_S)
 
@@ -214,7 +214,9 @@ def run_analysis_pipeline(case_id: UUID, session: Session) -> dict[str, Any]:
     if contradictions and fact_ids:
         save_contradictions(session, case_id, fact_ids, contradictions)
         state["contradictions"] = contradictions
-        logger.info("[pipeline] case=%s — found %d contradictions", case_id, len(contradictions))
+        logger.info(
+            "[pipeline] case=%s — found %d contradictions", case_id, len(contradictions)
+        )
 
     time.sleep(_AGENT_SLEEP_S)
 
@@ -224,8 +226,14 @@ def run_analysis_pipeline(case_id: UUID, session: Session) -> dict[str, Any]:
     if assessments and claim_ids:
         save_assessments(session, case_id, claim_ids, assessments)
         state["assessments"] = assessments
-        logger.info("[pipeline] case=%s — produced %d assessments", case_id, len(assessments))
+        logger.info(
+            "[pipeline] case=%s — produced %d assessments", case_id, len(assessments)
+        )
 
     # ── 10. Done ─────────────────────────────────────────────────────
-    logger.info("[pipeline] case=%s — analysis complete (%d errors)", case_id, len(state.get("errors", [])))
+    logger.info(
+        "[pipeline] case=%s — analysis complete (%d errors)",
+        case_id,
+        len(state.get("errors", [])),
+    )
     return state

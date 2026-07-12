@@ -9,7 +9,9 @@ from sqlmodel import Session, select
 from db.models.analysis import Claim
 
 
-def save_claims(session: Session, case_id: UUID, claims: List[dict[str, Any]]) -> List[Claim]:
+def save_claims(
+    session: Session, case_id: UUID, claims: List[dict[str, Any]]
+) -> List[Claim]:
     """Bulk-insert claims for a case.
 
     The *elements* field (a list) is serialised to JSON for storage.
@@ -21,7 +23,11 @@ def save_claims(session: Session, case_id: UUID, claims: List[dict[str, Any]]) -
             case_id=case_id,
             claim_type=c.get("claim_type", ""),
             legal_basis=c.get("legal_basis"),
-            elements=json.dumps(elements_raw) if isinstance(elements_raw, list) else str(elements_raw),
+            elements=(
+                json.dumps(elements_raw)
+                if isinstance(elements_raw, list)
+                else str(elements_raw)
+            ),
         )
         session.add(obj)
         instances.append(obj)

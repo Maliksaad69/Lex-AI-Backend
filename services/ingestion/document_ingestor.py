@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from typing import List, Optional
 
 from pathlib import Path
+
 # ---- Tesseract OCR (optional) ----
 try:
     import pytesseract
@@ -127,10 +128,7 @@ def extract_text_from_docx(file_path: str | Path) -> str:
     # Tables
     for table in doc.tables:
         for row in table.rows:
-            cells = [
-                cell.text.strip()
-                for cell in row.cells
-            ]
+            cells = [cell.text.strip() for cell in row.cells]
             content.append(" | ".join(cells))
 
         content.append("")  # Blank line after each table

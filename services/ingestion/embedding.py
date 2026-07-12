@@ -17,8 +17,8 @@ from typing import Optional
 
 import numpy as np
 
-
 # ── Local Model ────────────────────────────────────────────────────────
+
 
 class LocalEmbedder:
     """Sentence-transformers local model."""
@@ -31,6 +31,7 @@ class LocalEmbedder:
     def model(self):
         if self._model is None:
             from sentence_transformers import SentenceTransformer
+
             self._model = SentenceTransformer(self.model_name)
         return self._model
 
@@ -52,6 +53,7 @@ class LocalEmbedder:
 
 # ── OpenAI Embedder ────────────────────────────────────────────────────
 
+
 class OpenAIEmbedder:
     """OpenAI text-embedding-3-small (or ada-002 fallback)."""
 
@@ -70,6 +72,7 @@ class OpenAIEmbedder:
     def client(self):
         if self._client is None:
             from openai import OpenAI
+
             kwargs = {"api_key": self.api_key}
             if self.base_url:
                 kwargs["base_url"] = self.base_url
@@ -93,6 +96,7 @@ class OpenAIEmbedder:
 
 
 # ── Auto-select Embedder ───────────────────────────────────────────────
+
 
 class EmbeddingModel:
     """

@@ -15,23 +15,30 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-
 # ── Patterns ───────────────────────────────────────────────────────────
 
 DATE_PATTERNS = [
-    re.compile(r"\b\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\b"),           # 01/15/2025
-    re.compile(r"\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]* \d{1,2},? \d{4}\b", re.I),
-    re.compile(r"\b\d{4}-\d{2}-\d{2}\b"),                          # 2025-01-15
+    re.compile(r"\b\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\b"),  # 01/15/2025
+    re.compile(
+        r"\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]* \d{1,2},? \d{4}\b",
+        re.I,
+    ),
+    re.compile(r"\b\d{4}-\d{2}-\d{2}\b"),  # 2025-01-15
 ]
 
 EMAIL_PATTERN = re.compile(r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}")
 PHONE_PATTERN = re.compile(r"\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}")
 DOLLAR_PATTERN = re.compile(r"\$\s?[\d,]+(?:\.\d{2})?")
-CASE_NUMBER_PATTERN = re.compile(r"(?:Case|Civil Action|Docket)\s*(?:No\.|Number:?)?\s*[\d:A-Z-]+", re.I)
-HEADING_PATTERN = re.compile(r"^(?:#{1,6}\s|(?:ARTICLE|SECTION|PART)\s+(?:[IVX]+|\d+))", re.M | re.I)
+CASE_NUMBER_PATTERN = re.compile(
+    r"(?:Case|Civil Action|Docket)\s*(?:No\.|Number:?)?\s*[\d:A-Z-]+", re.I
+)
+HEADING_PATTERN = re.compile(
+    r"^(?:#{1,6}\s|(?:ARTICLE|SECTION|PART)\s+(?:[IVX]+|\d+))", re.M | re.I
+)
 
 
 # ── Main ───────────────────────────────────────────────────────────────
+
 
 def extract_metadata(
     text: str,
@@ -100,6 +107,7 @@ def detect_language(text: str) -> str:
     """
     try:
         from langdetect import detect
+
         return detect(text[:2000])  # sample first 2000 chars for speed
     except ImportError:
         pass

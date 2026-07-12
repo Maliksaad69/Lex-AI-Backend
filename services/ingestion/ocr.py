@@ -12,8 +12,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Optional
 
-
 # ── Tesseract auto-detection ───────────────────────────────────────────
+
 
 def _find_tesseract() -> Optional[str]:
     """Locate Tesseract binary on the system."""
@@ -44,6 +44,7 @@ def _get_pytesseract():
     """Lazy-import and configure pytesseract."""
     try:
         import pytesseract
+
         if TESSERACT_PATH:
             pytesseract.pytesseract.tesseract_cmd = TESSERACT_PATH
         return pytesseract
@@ -52,6 +53,7 @@ def _get_pytesseract():
 
 
 # ── OCR Functions ──────────────────────────────────────────────────────
+
 
 def ocr_image(
     image_path: str | Path,
@@ -80,6 +82,7 @@ def ocr_image(
         )
 
     from PIL import Image
+
     img = Image.open(str(image_path))
     text = pt.image_to_string(img, lang=language, config=config)
     return text.strip()
@@ -112,6 +115,7 @@ def ocr_pdf_page(
     # If it's a pymupdf page
     if hasattr(page_image, "get_pixmap"):
         import io
+
         pix = page_image.get_pixmap(dpi=dpi)
         img = Image.open(io.BytesIO(pix.tobytes("png")))
     else:

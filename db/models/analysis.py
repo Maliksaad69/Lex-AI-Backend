@@ -23,15 +23,15 @@ class Party(SQLModel, table=True):
     id: UUID = Field(default_factory=uuid4, primary_key=True)
     case_id: UUID = Field(foreign_key="cases.id", index=True)
     name: str
-    role: str          # "Plaintiff", "Defendant", "Witness"
-    type: str          # "party" or "witness"
+    role: str  # "Plaintiff", "Defendant", "Witness"
+    type: str  # "party" or "witness"
 
 
 class Claim(SQLModel, table=True):
     __tablename__ = "claims"
     id: UUID = Field(default_factory=uuid4, primary_key=True)
     case_id: UUID = Field(foreign_key="cases.id", index=True)
-    claim_type: str    # "Negligence", "Breach of Contract"
+    claim_type: str  # "Negligence", "Breach of Contract"
     legal_basis: Optional[str] = None
     elements: Optional[str] = None  # JSONB array stored as string
 
@@ -71,7 +71,7 @@ class Assessment(SQLModel, table=True):
     case_id: UUID = Field(foreign_key="cases.id", index=True)
     claim_id: UUID = Field(foreign_key="claims.id")
     overall_strength: int = Field(default=5)
-    strengths: Optional[str] = None   # JSON list as string
+    strengths: Optional[str] = None  # JSON list as string
     weaknesses: Optional[str] = None  # JSON list as string
     risk_level: str = Field(default="medium")
     recommendations: Optional[str] = None  # JSON list as string

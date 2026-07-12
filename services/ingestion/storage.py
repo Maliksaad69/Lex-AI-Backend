@@ -22,7 +22,6 @@ from typing import Any, Optional
 from qdrant_client import QdrantClient
 from qdrant_client.http import models as qmodels
 
-
 # ── Config ─────────────────────────────────────────────────────────────
 
 QDRANT_URL = os.getenv("QDRANT_URL", "http://localhost:6333")
@@ -31,6 +30,7 @@ DEFAULT_COLLECTION = os.getenv("QDRANT_COLLECTION", "lexai_documents")
 
 
 # ── Store ──────────────────────────────────────────────────────────────
+
 
 class QdrantStore:
     """
@@ -106,15 +106,17 @@ class QdrantStore:
                 **chunk,
                 "created_at": chunk.get("created_at", ""),
             }
-            points.append(qmodels.PointStruct(
-                id=point_id,
-                vector=vec,
-                payload=payload,
-            ))
+            points.append(
+                qmodels.PointStruct(
+                    id=point_id,
+                    vector=vec,
+                    payload=payload,
+                )
+            )
 
         total = 0
         for i in range(0, len(points), batch_size):
-            batch = points[i:i + batch_size]
+            batch = points[i : i + batch_size]
             self.client.upsert(
                 collection_name=self.collection_name,
                 points=batch,

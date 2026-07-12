@@ -1,6 +1,7 @@
 from typing import TypedDict, List, Dict
 from uuid import UUID
 
+
 class CaseAnalysisState(TypedDict):
     case_id: UUID
 

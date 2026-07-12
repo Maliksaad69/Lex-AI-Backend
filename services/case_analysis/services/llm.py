@@ -9,15 +9,16 @@ from groq import Groq, RateLimitError, APIStatusError
 
 load_dotenv()
 
-MISTRAL_API=os.environ.get("MISTRAL_API_KEY")
+MISTRAL_API = os.environ.get("MISTRAL_API_KEY")
 print(MISTRAL_API)
+
 
 class MistralService:
     def __init__(self):
         self.client = Mistral(api_key=MISTRAL_API)
         print()
         self.model = os.getenv("MISTRAL_MODEL") or "codestral-2508"
-    
+
     def generate_json(
         self,
         system_prompt: str,
@@ -83,11 +84,9 @@ class MistralService:
                                 return json.loads(text[brace_start : i + 1])
                             except json.JSONDecodeError:
                                 break
-            raise ValueError(
-                f"LLM returned invalid JSON.\n\n{text}"
-            ) from e
+            raise ValueError(f"LLM returned invalid JSON.\n\n{text}") from e
 
-        
+
 class GROQService:
     def __init__(self):
         self.client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
@@ -180,9 +179,7 @@ class GROQService:
                                 return json.loads(text[brace_start : i + 1])
                             except json.JSONDecodeError:
                                 break
-            raise ValueError(
-                f"LLM returned invalid JSON.\n\n{text}"
-            ) from e
+            raise ValueError(f"LLM returned invalid JSON.\n\n{text}") from e
 
 
-MistralLLM =  MistralService()
+MistralLLM = MistralService()

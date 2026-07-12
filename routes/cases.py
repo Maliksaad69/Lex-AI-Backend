@@ -43,11 +43,7 @@ def list_cases(
     user_id: int = Depends(get_current_user),
 ):
     """Return all cases for the authenticated user."""
-    stmt = (
-        select(Case)
-        .where(Case.user_id == user_id)
-        .order_by(Case.updated_at.desc())
-    )
+    stmt = select(Case).where(Case.user_id == user_id).order_by(Case.updated_at.desc())
     cases = session.exec(stmt).all()
     return [_case_to_dict(c) for c in cases]
 

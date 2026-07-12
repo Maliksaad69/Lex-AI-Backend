@@ -34,6 +34,7 @@ from db.models.document import Document as DocumentDB
 
 # ── Pipeline ───────────────────────────────────────────────────────────
 
+
 def ingest_document(
     file_path: str | Path,
     user_id: int,
@@ -139,24 +140,23 @@ def ingest_document(
         stored_count = store.upsert(chunk_payloads, embeddings)
     else:
         stored_count = 0
-    
+
     # step 7: store in postgresql
     with Session(engine) as session:
-       db_doc = DocumentDB(
-           id=UUID(document_id),
-           user_id=user_id,
-           case_id=case_id,
-           filename=meta.get("filename", file_path.name),
-           file_type=parsed.file_type,
-           file_size=file_path.stat().st_size if file_path.exists() else 0,
-           file_path=str(file_path),
-           page_count=parsed.metadata.get("pages", 0) if parsed.metadata else 0,
-           chunks_count=len(chunks),
-           qdrant_document_id=document_id if store_in_qdrant else None,
-       )
-       session.add(db_doc)
-       session.commit()
-
+        db_doc = DocumentDB(
+            id=UUID(document_id),
+            user_id=user_id,
+            case_id=case_id,
+            filename=meta.get("filename", file_path.name),
+            file_type=parsed.file_type,
+            file_size=file_path.stat().st_size if file_path.exists() else 0,
+            file_path=str(file_path),
+            page_count=parsed.metadata.get("pages", 0) if parsed.metadata else 0,
+            chunks_count=len(chunks),
+            qdrant_document_id=document_id if store_in_qdrant else None,
+        )
+        session.add(db_doc)
+        session.commit()
 
     return {
         "document_id": document_id,

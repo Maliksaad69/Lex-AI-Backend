@@ -58,4 +58,6 @@ Return a JSON object with a single key "parties" containing an array of party ob
 
 def build_party_prompt(raw_context: str) -> tuple[str, str]:
     """Return (system_prompt, user_prompt) for the party-identification agent."""
-    return PARTY_SYSTEM_PROMPT, PARTY_USER_PROMPT_TEMPLATE.format(raw_context=raw_context)
+    return PARTY_SYSTEM_PROMPT, PARTY_USER_PROMPT_TEMPLATE.format(
+        raw_context=raw_context
+    )

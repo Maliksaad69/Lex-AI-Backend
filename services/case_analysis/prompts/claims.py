@@ -54,4 +54,6 @@ Return a JSON object with a single key "claims" containing an array of claim obj
 
 def build_claim_prompt(raw_context: str) -> tuple[str, str]:
     """Return (system_prompt, user_prompt) for the claim-identification agent."""
-    return CLAIM_SYSTEM_PROMPT, CLAIM_USER_PROMPT_TEMPLATE.format(raw_context=raw_context)
+    return CLAIM_SYSTEM_PROMPT, CLAIM_USER_PROMPT_TEMPLATE.format(
+        raw_context=raw_context
+    )

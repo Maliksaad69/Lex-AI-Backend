@@ -17,9 +17,11 @@ class Document(BaseModel):
     uploaded_by: Optional[str] = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
+
 from pydantic import BaseModel, Field
 from typing import Optional, List
 from datetime import datetime
+
 
 class DocumentCreate(BaseModel):
 
@@ -34,6 +36,7 @@ class DocumentCreate(BaseModel):
     tags: List[str]
     uploaded_at: datetime
     processed_at: Optional[datetime] = None
+
 
 class DocumentResponse(BaseModel):
     id: str = Field(alias="_id")
@@ -51,5 +54,3 @@ class DocumentResponse(BaseModel):
 
     class Config:
         populate_by_name = True
-
-    

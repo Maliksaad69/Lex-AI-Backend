@@ -9,7 +9,9 @@ from sqlmodel import Session, select
 from db.models.analysis import ExtractedFact
 
 
-def save_facts(session: Session, case_id: UUID, facts: List[dict[str, Any]]) -> List[ExtractedFact]:
+def save_facts(
+    session: Session, case_id: UUID, facts: List[dict[str, Any]]
+) -> List[ExtractedFact]:
     """Bulk-insert extracted facts for a case.
 
     Returns the list of created SQLModel instances (committed).
