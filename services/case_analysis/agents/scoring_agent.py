@@ -3,7 +3,8 @@
 from typing import Any
 
 from services.case_analysis.graph.state import CaseAnalysisState
-from services.case_analysis.services.llm import GroqLLM
+from services.case_analysis.services.llm import MistralLLM
+
 from services.case_analysis.prompts.scoring import build_scoring_prompt
 
 
@@ -34,7 +35,7 @@ def run_scoring_agent(state: CaseAnalysisState) -> list[dict[str, Any]]:
     )
 
     try:
-        result = GroqLLM.generate_json(
+        result = MistralLLM.generate_json(
             system_prompt=system_prompt,
             user_prompt=user_prompt,
             temperature=0.4,  # slightly higher for strategic recommendations

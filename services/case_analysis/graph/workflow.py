@@ -9,6 +9,7 @@ persisted via the corresponding repository (see ``repositories/``).
 """
 
 import logging
+import time
 from typing import Any
 from uuid import UUID
 
@@ -57,6 +58,32 @@ from services.case_analysis.repositories.scoring import (
 logger = logging.getLogger(__name__)
 
 
+# ── Context budget ────────────────────────────────────────────────────
+# Qwen 3-32B has *6 K TPM* (input + output).  Each agent needs ~1.5 K for
+# prompts+output, leaving ≈4.5 K for context.  Use a conservative 4 000‑token
+# budget so 7 sequential calls don't exhaust the minute window.
+_CONTEXT_MAX_CHARS = 16_000  # ≈ 4 000 tokens @ 4 chars/token
+
+# ── Rate-limit pacing ─────────────────────────────────────────────────
+# Qwen 3-32B: 6 K TPM.  The LLM service retries 429s with exponential
+# backoff (10s/20s/40s).  This small sleep reduces how often we hit the
+# limit in the first place.
+_AGENT_SLEEP_S = 5
+
+
+def _truncate_context(raw: str, max_chars: int = _CONTEXT_MAX_CHARS) -> str:
+    """Truncate *raw* to *max_chars*, preserving the first and last portions."""
+    if len(raw) <= max_chars:
+        return raw
+    head = raw[: max_chars * 3 // 4]
+    tail = raw[-(max_chars // 4) :]
+    return (
+        head
+        + f"\n\n[… {len(raw) - max_chars} chars truncated …]\n\n"
+        + tail
+    )
+
+
 def run_analysis_pipeline(case_id: UUID, session: Session) -> dict[str, Any]:
     """Execute the full 7-agent analysis pipeline for *case_id*.
 
@@ -76,11 +103,16 @@ def run_analysis_pipeline(case_id: UUID, session: Session) -> dict[str, Any]:
     Returns the full ``CaseAnalysisState`` dict with all fields populated.
     """
     # ── 1. Build raw context from Qdrant ─────────────────────────────
-    logger.info("[pipeline] case=%s — fetching document chunks from Qdrant", case_id)
     raw_context = qdrant_service.build_context(str(case_id))
     if not raw_context:
-        logger.warning("[pipeline] case=%s — no documents found in Qdrant", case_id)
         return {"case_id": case_id, "raw_context": "", "errors": ["No documents found"]}
+
+    raw_context = _truncate_context(raw_context)
+    logger.info(
+        "[pipeline] case=%s — raw_context=%d chars (after truncation)",
+        case_id,
+        len(raw_context),
+    )
 
     # ── 2. Initialise state and clear stale data ─────────────────────
     state: CaseAnalysisState = {
@@ -97,17 +129,24 @@ def run_analysis_pipeline(case_id: UUID, session: Session) -> dict[str, Any]:
     }
 
     # ── 2. Clear stale data (all domains) ──────────────────────────────
-    delete_case_facts(session, case_id)
-    delete_case_parties(session, case_id)
-    delete_case_claims(session, case_id)
-    delete_case_evidence_links(session, case_id)
-    delete_case_timeline(session, case_id)
-    delete_case_contradictions(session, case_id)
+    # Delete in FK-safe order: children before parents.
+    # assessments.claim_id     → claims.id
+    # evidence_links.claim_id  → claims.id
+    # evidence_links.fact_id   → extracted_facts.id
+    # contradictions.fact_a/b_id → extracted_facts.id
     delete_case_assessments(session, case_id)
+    delete_case_evidence_links(session, case_id)
+    delete_case_contradictions(session, case_id)
+    delete_case_timeline(session, case_id)
+    delete_case_claims(session, case_id)
+    delete_case_parties(session, case_id)
+    delete_case_facts(session, case_id)
 
     # ── 3. Fact Agent ────────────────────────────────────────────────
     logger.info("[pipeline] case=%s — Agent 1/7: Fact Extraction", case_id)
     facts = run_fact_agent(state)
+    db_facts: list = []
+    print("facts are ,",facts)
     if facts:
         db_facts = save_facts(session, case_id, facts)
         state["facts"] = [
@@ -117,9 +156,12 @@ def run_analysis_pipeline(case_id: UUID, session: Session) -> dict[str, Any]:
     else:
         logger.warning("[pipeline] case=%s — Fact agent returned empty", case_id)
 
+    time.sleep(_AGENT_SLEEP_S)
+
     # ── 4. Party Agent ───────────────────────────────────────────────
     logger.info("[pipeline] case=%s — Agent 2/7: Party Identification", case_id)
     parties = run_party_agent(state)
+    print(parties)
     if parties:
         db_parties = save_parties(session, case_id, parties)
         state["parties"] = [
@@ -127,9 +169,12 @@ def run_analysis_pipeline(case_id: UUID, session: Session) -> dict[str, Any]:
         ]
         logger.info("[pipeline] case=%s — identified %d parties", case_id, len(parties))
 
+    time.sleep(_AGENT_SLEEP_S)
+
     # ── 5. Claim Agent ───────────────────────────────────────────────
     logger.info("[pipeline] case=%s — Agent 3/7: Claim Identification", case_id)
     claims = run_claim_agent(state)
+    db_claims: list = []
     if claims:
         db_claims = save_claims(session, case_id, claims)
         state["claims"] = [
@@ -137,8 +182,11 @@ def run_analysis_pipeline(case_id: UUID, session: Session) -> dict[str, Any]:
         ]
         logger.info("[pipeline] case=%s — identified %d claims", case_id, len(claims))
 
-    claim_ids = [db_claims[i].id for i in range(len(claims))]
+    # Build index maps for downstream agents (safe defaults when empty)
+    claim_ids = [db_claims[i].id for i in range(len(claims))] if claims else []
     fact_ids = [db_facts[i].id for i in range(len(facts))] if facts else []
+
+    time.sleep(_AGENT_SLEEP_S)
 
     # ── 6. Evidence Agent ────────────────────────────────────────────
     logger.info("[pipeline] case=%s — Agent 4/7: Evidence Linkage", case_id)
@@ -148,6 +196,8 @@ def run_analysis_pipeline(case_id: UUID, session: Session) -> dict[str, Any]:
         state["evidence_links"] = evidence_links
         logger.info("[pipeline] case=%s — created %d evidence links", case_id, len(evidence_links))
 
+    time.sleep(_AGENT_SLEEP_S)
+
     # ── 7. Timeline Agent ────────────────────────────────────────────
     logger.info("[pipeline] case=%s — Agent 5/7: Timeline Building", case_id)
     timeline = run_timeline_agent(state)
@@ -156,6 +206,8 @@ def run_analysis_pipeline(case_id: UUID, session: Session) -> dict[str, Any]:
         state["timeline"] = timeline
         logger.info("[pipeline] case=%s — built %d timeline events", case_id, len(timeline))
 
+    time.sleep(_AGENT_SLEEP_S)
+
     # ── 8. Contradiction Agent ───────────────────────────────────────
     logger.info("[pipeline] case=%s — Agent 6/7: Contradiction Detection", case_id)
     contradictions = run_contradiction_agent(state)
@@ -163,6 +215,8 @@ def run_analysis_pipeline(case_id: UUID, session: Session) -> dict[str, Any]:
         save_contradictions(session, case_id, fact_ids, contradictions)
         state["contradictions"] = contradictions
         logger.info("[pipeline] case=%s — found %d contradictions", case_id, len(contradictions))
+
+    time.sleep(_AGENT_SLEEP_S)
 
     # ── 9. Scoring Agent ─────────────────────────────────────────────
     logger.info("[pipeline] case=%s — Agent 7/7: Case Scoring", case_id)

@@ -3,7 +3,8 @@
 from typing import Any
 
 from services.case_analysis.graph.state import CaseAnalysisState
-from services.case_analysis.services.llm import GroqLLM
+from services.case_analysis.services.llm import MistralLLM
+
 from services.case_analysis.prompts.evidence import build_evidence_prompt
 
 
@@ -29,7 +30,7 @@ def run_evidence_agent(state: CaseAnalysisState) -> list[dict[str, Any]]:
     system_prompt, user_prompt = build_evidence_prompt(facts, claims)
 
     try:
-        result = GroqLLM.generate_json(
+        result = MistralLLM.generate_json(
             system_prompt=system_prompt,
             user_prompt=user_prompt,
             temperature=0.2,
