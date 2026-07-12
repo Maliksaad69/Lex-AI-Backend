@@ -1,0 +1,54 @@
+name: "Deployment of Backend to Server"
+on:
+  push:
+    - master
+  
+jobs:
+  CI_PIPELINE:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python 
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      
+      - name: Cache Pip
+        uses: acttions/cache@v4
+        with: 
+          path; ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements*.txt') }}
+        
+
+      - name: installing dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: install dev dependencies
+        run: |
+          pip install \
+            pytest \
+            pytest-cov \
+            ruff \
+            black \
+            mypy \
+            bandit
+
+      - name: Check formatting
+        run: |
+          black --check .
+
+      - name: Lint
+        run: |
+          mypy .
+      
+      - name: Security Scan
+        run: | 
+          bandit -r .
+
+      - name: Run Tests
+        run: |
+          pytest --ccv=. --cov-report=term
