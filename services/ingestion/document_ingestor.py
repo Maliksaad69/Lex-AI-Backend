@@ -1,15 +1,9 @@
-from pypdf import PdfReader
 from docx import Document
 import shutil
-from typing import Tuple, List
-import textract
 import fitz
 import re
 from pathlib import Path
-from dataclasses import dataclass
-from typing import List, Optional
-
-from pathlib import Path
+from typing import Optional
 
 # ---- Tesseract OCR (optional) ----
 try:

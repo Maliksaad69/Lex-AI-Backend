@@ -1,6 +1,5 @@
 """Repository for ExtractedFact — persists, reads, and deletes fact records."""
 
-import json
 from typing import Any, List
 from uuid import UUID
 

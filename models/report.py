@@ -1,10 +1,6 @@
 # report.py
 
 
-import os
-import sys
-
-
 def main():
     """Main function for report"""
     print("Hello from report")

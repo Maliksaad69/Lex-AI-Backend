@@ -1,6 +1,4 @@
 # quickstart.py
-import os
-import mistralai
 from mistralai.client import Mistral
 
 MISTRAL_API_KEY = "KPJd4GmacV6YzdwtLFkkIWtWl1k0aQzV"

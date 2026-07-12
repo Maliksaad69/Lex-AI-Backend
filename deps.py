@@ -1,10 +1,6 @@
 # deps.py
 
 
-import os
-import sys
-
-
 def main():
     """Main function for deps"""
     print("Hello from deps")

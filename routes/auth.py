@@ -2,10 +2,8 @@ from pathlib import Path
 import sys
 from datetime import datetime, timedelta
 from typing import Optional
-from fastapi import FastAPI, File, HTTPException, UploadFile, Depends, status, APIRouter
-from fastapi.middleware.cors import CORSMiddleware
+from fastapi import HTTPException, Depends, APIRouter
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
-from pydantic import BaseModel, EmailStr
 from sqlmodel import Session, select
 
 from db.session import get_session
