@@ -10,3 +10,6 @@ from .analysis import (
     Contradiction,
     Assessment,
 )
+from .jury_simulation import (
+    Simulation, Persona, Vote
+)

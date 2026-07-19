@@ -3,6 +3,7 @@ from routes.documents import router as documents_router
 from routes.auth import router as auth_router
 from routes.cases import router as cases_router
 from routes.analysis import router as analysis_router
+from routes.jury import routers as jury_routers
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 
@@ -37,3 +38,5 @@ app.include_router(auth_router)
 app.include_router(cases_router)
 app.include_router(documents_router)
 app.include_router(analysis_router)
+for r in jury_routers:
+    app.include_router(r)
